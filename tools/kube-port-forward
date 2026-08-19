@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Parse optional -v or --verbose flag if present as the first argument
+VERBOSE_FLAG=""
+if [[ "${1:-}" == "-v" || "${1:-}" == "--verbose" ]]; then
+    VERBOSE_FLAG="--verbose"
+    shift
+fi
+
+# Print usage helper function
+usage() {
+    cat << EOF
+
+Usage: $0 [-v|--verbose] <kubeContext> <kubeNamespace> <podName> <podPort> <targetPort>
+
+Parameters:
+  kubeContext    - The Kubernetes context (e.g., dev-cluster, prod-cluster)
+  kubeNamespace  - The target namespace (e.g., default, staging)
+  podName        - The target pod name or prefix (e.g., my-app-7d4b9b)
+  podPort        - The local port on your machine (e.g., 8080)
+  targetPort     - The port inside the pod/container (e.g., 80)
+
+Flags:
+  -v, --verbose  - Enable detailed debug logs
+
+Example:
+  $0 minikube default my-redis-pod 6379 6379
+  $0 -v minikube default my-redis-pod 6379 6379
+
+EOF
+    exit 1
+}
+
+# Trap signals for graceful exit handling
+cleanup() {
+    echo ""
+    log warn "Termination signal received. Closing port forward connection..." $VERBOSE_FLAG
+    exit 0
+}
+trap cleanup SIGINT SIGTERM
+
+# Check if required parameters are provided
+if [ "$#" -ne 5 ]; then
+    log error "Missing required parameters. Expected 5, got $#." $VERBOSE_FLAG
+    usage
+fi
+
+KUBE_CONTEXT="$1"
+KUBE_NAMESPACE="$2"
+POD_NAME="$3"
+POD_PORT="$4"
+TARGET_PORT="$5"
+
+log info "Initializing Kubernetes Port Forwarding..." $VERBOSE_FLAG
+
+# Pre-flight Check: Verify 'log' utility is accessible in PATH
+if ! command -v log &> /dev/null; then
+    echo "[ERROR] 'log' command not found in PATH. Please install the 'log' script." >&2
+    exit 1
+fi
+
+# Pre-flight Check: Verify 'kubectl' exists
+if ! command -v kubectl &> /dev/null; then
+    log error "kubectl utility not found in PATH. Please install kubectl." $VERBOSE_FLAG
+    exit 1
+fi
+
+# Pre-flight Check: Validate pod existence
+log debug "Checking availability of pod '${POD_NAME}' in namespace '${KUBE_NAMESPACE}'..." $VERBOSE_FLAG
+if ! kubectl --context="${KUBE_CONTEXT}" --namespace="${KUBE_NAMESPACE}" get pod "${POD_NAME}" &> /dev/null; then
+    log error "Pod '${POD_NAME}' not found or unreachable in context '${KUBE_CONTEXT}', namespace '${KUBE_NAMESPACE}'." $VERBOSE_FLAG
+    exit 1
+fi
+
+log success "Pod '${POD_NAME}' verified successfully." $VERBOSE_FLAG
+log info "Configuration:" $VERBOSE_FLAG
+log info "  • Context:    ${KUBE_CONTEXT}" $VERBOSE_FLAG
+log info "  • Namespace:  ${KUBE_NAMESPACE}" $VERBOSE_FLAG
+log info "  • Forwarding: localhost:${POD_PORT} -> ${TARGET_PORT}" $VERBOSE_FLAG
+
+log info "Starting port-forward session (Press Ctrl+C to stop)..." $VERBOSE_FLAG
+
+# Run port-forwarding
+if kubectl --context="${KUBE_CONTEXT}" \
+           --namespace="${KUBE_NAMESPACE}" \
+           port-forward \
+           pod/"${POD_NAME}" \
+           "${POD_PORT}:${TARGET_PORT}"; then
+    log success "Port forwarding closed normally." $VERBOSE_FLAG
+else
+    log error "Port forwarding failed or encountered an error." $VERBOSE_FLAG
+    exit 1
+fi

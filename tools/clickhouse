@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Parse optional -v or --verbose flag if present as the first argument
+VERBOSE_FLAG=""
+if [[ "${1:-}" == "-v" || "${1:-}" == "--verbose" ]]; then
+    VERBOSE_FLAG="--verbose"
+    shift
+fi
+
+# Usage helper
+usage() {
+    cat << EOF
+
+Usage: $0 [-v|--verbose] <env> [region] [port] [user]
+
+Parameters:
+  env    - Required. Target environment (e.g., dev, staging, prod)
+  region - Optional. Target region (Default: eastus2)
+  port   - Optional. ClickHouse port (Default: 9000)
+  user   - Optional. ClickHouse username (Default: admin)
+
+Flags:
+  -v, --verbose - Enable detailed debug logs
+
+Example:
+  $0 dev
+  $0 -v staging eastus2 9000 admin
+
+EOF
+    exit 1
+}
+
+# Ensure at least 1 parameter (env) is provided
+if [ "$#" -lt 1 ]; then
+    if command -v log &> /dev/null; then
+        log error "Missing required 'env' parameter." $VERBOSE_FLAG
+    else
+        echo "[ERROR] Missing required 'env' parameter." >&2
+    fi
+    usage
+fi
+
+# Pre-flight Check: Ensure 'log' utility exists
+if ! command -v log &> /dev/null; then
+    echo "[ERROR] 'log' command not found in PATH. Please ensure the 'log' script is installed." >&2
+    exit 1
+fi
+
+env="$1"
+region="${2:-eastus2}"
+port="${3:-9000}"
+user="${4:-admin}"
+
+vault_name="kv-ch-app-eus2-${env}"
+secret_name="clickhouse-user-${user}"
+kube_context="${env}-aks-stateful-${env}-${region}"
+kube_namespace="clickhouse"
+pod_name="chi-ch-app-clickhouse-shard0-0-0"
+
+PF_PID=""
+PF_LOG_FILE=$(mktemp /tmp/k8s-pf.XXXXXX)
+
+# Cleanup handler: Synchronously terminate background port-forward process
+cleanup() {
+    trap - EXIT SIGINT SIGTERM
+    
+    if [ -n "${PF_PID:-}" ] && kill -0 "${PF_PID}" 2>/dev/null; then
+        log debug "Terminating background port-forward process (PID: ${PF_PID})..." $VERBOSE_FLAG
+        kill "${PF_PID}" 2>/dev/null || true
+        
+        # Wait up to 2 seconds for process to exit cleanly before force-killing
+        local count=0
+        while kill -0 "${PF_PID}" 2>/dev/null && [ $count -lt 20 ]; do
+            sleep 0.1
+            count=$((count + 1))
+        done
+
+        if kill -0 "${PF_PID}" 2>/dev/null; then
+            kill -9 "${PF_PID}" 2>/dev/null || true
+        fi
+        
+        wait "${PF_PID}" 2>/dev/null || true
+        log info "Port-forward connection closed." $VERBOSE_FLAG
+    fi
+
+    # Ensure any residual process listening on the port is cleaned up
+    if command -v lsof &>/dev/null; then
+        local residual_pid
+        residual_pid=$(lsof -X -t -i :"${port}" 2>/dev/null || true)
+        if [ -n "${residual_pid}" ]; then
+            kill -9 ${residual_pid} 2>/dev/null || true
+        fi
+    fi
+
+    # Remove temporary log file
+    rm -f "${PF_LOG_FILE}" 2>/dev/null || true
+}
+trap cleanup EXIT SIGINT SIGTERM
+
+# Print internal port forward errors captured from the temporary log file
+print_pf_errors() {
+    log error "Port Forward CLI Output/Errors:" $VERBOSE_FLAG
+    echo "----------------------------------------------------------------------"
+    if [ -f "${PF_LOG_FILE}" ] && [ -s "${PF_LOG_FILE}" ]; then
+        while IFS= read -r line || [ -n "$line" ]; do
+            [ -n "$line" ] && log error "[PF LOG] $line" $VERBOSE_FLAG
+        done < "${PF_LOG_FILE}"
+    else
+        log warn "No log output recorded in ${PF_LOG_FILE}" $VERBOSE_FLAG
+    fi
+    echo "----------------------------------------------------------------------"
+}
+
+# Function to fetch and log pod output if connection fails
+fetch_pod_logs() {
+    log warn "Retrieving recent Kubernetes logs for pod '${pod_name}'..." $VERBOSE_FLAG
+    
+    if ! command -v kubectl &> /dev/null; then
+        log warn "kubectl is not installed. Skipping pod log retrieval." $VERBOSE_FLAG
+        return
+    fi
+
+    echo "----------------------------------------------------------------------"
+    # Capture stderr (2>&1) so RBAC errors/denials are printed directly to log
+    local pod_output
+    pod_output=$(kubectl --context="${kube_context}" --namespace="${kube_namespace}" logs --tail=15 "${pod_name}" 2>&1 || true)
+    
+    if [ -n "$pod_output" ]; then
+        echo "$pod_output" | while IFS= read -r line || [ -n "$line" ]; do
+            log error "[POD LOG] $line" $VERBOSE_FLAG
+        done
+    else
+        log warn "No output or logs returned from kubectl for pod '${pod_name}'." $VERBOSE_FLAG
+    fi
+    echo "----------------------------------------------------------------------"
+}
+
+log info "Initializing ClickHouse local client session..." $VERBOSE_FLAG
+log debug "Target Env: '${env}' | Region: '${region}' | Port: '${port}' | User: '${user}'" $VERBOSE_FLAG
+
+# Pre-flight Checks: Verify required CLI dependencies are installed
+log debug "Checking CLI dependencies (chctl, az, kube-port-forward)..." $VERBOSE_FLAG
+for cmd in chctl az kube-port-forward; do
+    if ! command -v "$cmd" &> /dev/null; then
+        log error "Required CLI '$cmd' is not installed or not in PATH." $VERBOSE_FLAG
+        exit 1
+    fi
+done
+
+# Ensure local port is free before starting port-forward
+if command -v lsof &>/dev/null && lsof -X -t -i :"${port}" &>/dev/null; then
+    log warn "Port ${port} is currently bound by another process. Cleaning up..." $VERBOSE_FLAG
+    kill -9 $(lsof -X -t -i :"${port}") 2>/dev/null || true
+    sleep 0.5
+fi
+
+# Fetch secret from Azure Key Vault
+log info "Fetching password from Azure Key Vault ('${vault_name}')..." $VERBOSE_FLAG
+log debug "Retrieving secret key '${secret_name}' from Key Vault '${vault_name}'..." $VERBOSE_FLAG
+
+if ! password=$(az keyvault secret show --vault-name "${vault_name}" --name "${secret_name}" --query value -o tsv 2>/dev/null); then
+    log error "Failed to retrieve secret '${secret_name}' from Key Vault '${vault_name}'. Check your Azure login status and permissions." $VERBOSE_FLAG
+    exit 1
+fi
+
+log success "Password successfully retrieved from Key Vault." $VERBOSE_FLAG
+
+# Start Port Forwarding
+log info "Starting port-forwarding to pod '${pod_name}' on port ${port}..." $VERBOSE_FLAG
+log debug "Context: ${kube_context} | Namespace: ${kube_namespace}" $VERBOSE_FLAG
+
+kube-port-forward $VERBOSE_FLAG "${kube_context}" "${kube_namespace}" "${pod_name}" "${port}" "9000" > "${PF_LOG_FILE}" 2>&1 &
+PF_PID=$!
+
+log debug "Port-forward process launched in background (PID: ${PF_PID}, Log: ${PF_LOG_FILE})" $VERBOSE_FLAG
+
+# Wait for local port to become active AND check if background process crashed
+log info "Waiting for local port ${port} to become active..." $VERBOSE_FLAG
+MAX_RETRIES=10
+RETRY_COUNT=0
+PORT_READY=false
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    # 1. Check if background process died prematurely
+    if ! kill -0 "${PF_PID}" 2>/dev/null; then
+        log error "Port forward background process exited unexpectedly!" $VERBOSE_FLAG
+        print_pf_errors
+        fetch_pod_logs
+        exit 1
+    fi
+
+    # 2. Check if local port is active
+    if nc -z localhost "${port}" 2>/dev/null || (exec 3<>/dev/tcp/localhost/"${port}") 2>/dev/null; then
+        PORT_READY=true
+        exec 3>&- 2>/dev/null || true
+        break
+    fi
+
+    sleep 0.5
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+done
+
+if [ "$PORT_READY" = "false" ]; then
+    log error "Port forward failed to open localhost:${port} within timeout." $VERBOSE_FLAG
+    print_pf_errors
+    fetch_pod_logs
+    exit 1
+fi
+
+log success "Port forwarding established on localhost:${port}." $VERBOSE_FLAG
+log info "Connecting to ClickHouse client at localhost:${port} as user '${user}'..." $VERBOSE_FLAG
+
+# Execute chctl client connection
+if chctl local client --host localhost --port "$port" --user "${user}" --password "${password}"; then
+    log success "ClickHouse client session closed normally." $VERBOSE_FLAG
+else
+    log error "ClickHouse client connection failed or exited with an error." $VERBOSE_FLAG
+    print_pf_errors
+    fetch_pod_logs
+    exit 1
+fi
