@@ -21,13 +21,13 @@ Linux: git and curl installed via your system package manager
 Run the automated installation script directly from your terminal:
 
 ```Bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/dotfiles/main/bootstrap.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/qlevasseur-genetec/dotfiles-mac/refs/heads/main/bootstrap.sh)"
 ```
 
 Alternatively, clone and run it locally:
 
 ```Bash
-git clone --bare git@github.com:YOUR_USERNAME/dotfiles.git $HOME/.dotfiles
+git clone --bare https://github.com/qlevasseur-genetec/dotfiles-mac.git $HOME/.dotfiles
 alias dotfiles='git --git-dir=$HOME/.dotfiles/ --work-tree=$HOME'
 dotfiles checkout
 chmod +x ~/bootstrap.sh

@@ -113,6 +113,44 @@ else
 fi
 
 # ==============================================================================
+# 5. AZURE CLI AUTH, EXTENSIONS & INTERNAL TOOL INSTALL
+# ==============================================================================
+echo "==> Configuring Azure DevOps environment..."
+
+# Ensure Azure CLI is available (must be in your Brewfile: brew "azure-cli")
+if ! command -v az &>/dev/null; then
+  echo "Error: 'az' CLI not found. Ensure 'azure-cli' is installed via Homebrew."
+  exit 1
+fi
+
+# 1. Check Azure login state; prompt login if not authenticated
+echo "==> Checking Azure CLI authentication..."
+if ! az account show &>/dev/null; then
+  echo "==> Not logged into Azure. Launching browser login..."
+  az login --output none
+else
+  echo "==> Azure CLI already authenticated."
+fi
+
+# 2. Install/update the Azure DevOps extension
+echo "==> Installing/updating Azure DevOps extension..."
+if az extension list --query "[?name=='azure-devops']" -o tsv | grep -q azure-devops; then
+  az extension update --name azure-devops --output none
+else
+  az extension add --name azure-devops --output none
+fi
+
+# Set default organization/project if desired (optional)
+# az devops configure --defaults organization="https://dev.azure.com/YOUR_ORG"
+
+# 3. Run command to install your internal tool
+echo "==> Installing internal tooling..."
+
+bash <(curl -s -H "Authorization: Bearer $(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv)" "https://dev.azure.com/GenetecCentral/a2aab280-e5dd-41a2-ba9c-adb9a9c0716a/_apis/git/repositories/9df43119-f938-4222-8855-0972efcbe442/items?download=true&path=/src/scripts/install.sh&api-version=7.0&versionDescriptor.version=main&versionDescriptor.versionType=branch")
+
+echo "==> Internal tools installed successfully."
+
+# ==============================================================================
 # COMPLETION
 # ==============================================================================
 echo "==> Bootstrap complete! Restart your shell or run: exec zsh"
