@@ -8,6 +8,8 @@ DOTFILES_REPO="https://github.com/qlevasseur-genetec/dotfiles-mac.git"
 DOTFILES_DIR="$HOME/.dotfiles"
 BREWFILE_PATH="$HOME/.config/.Brewfile"
 ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
+ZSHENV_PATH="$HOME/.zshenv"
+ZSHENV_SOURCE="$HOME/.config/zsh/.zshenv"
 
 echo "==> Starting machine bootstrap..."
 
@@ -88,6 +90,18 @@ fi
 
 dotfiles config --local status.showUntrackedFiles no
 echo "==> Dotfiles checked out successfully."
+
+# Ensure zsh loads the tracked environment file from its XDG config location.
+if [[ ! -L "$ZSHENV_PATH" ]]; then
+  if [[ -e "$ZSHENV_PATH" ]]; then
+    echo "==> Backing up existing $ZSHENV_PATH before creating symlink..."
+    mv "$ZSHENV_PATH" "$HOME/.dotfiles-backup/.zshenv"
+  fi
+  ln -s "$ZSHENV_SOURCE" "$ZSHENV_PATH"
+elif [[ "$(readlink "$ZSHENV_PATH")" != "$ZSHENV_SOURCE" ]]; then
+  rm "$ZSHENV_PATH"
+  ln -s "$ZSHENV_SOURCE" "$ZSHENV_PATH"
+fi
 
 # ==============================================================================
 # 3. INSTALL PACKAGES FROM BREWFILE
