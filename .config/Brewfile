@@ -1,5 +1,11 @@
+tap "alexsjones/llmfit", "https://github.com/AlexsJones/homebrew-llmfit"
+tap "alexsjones/llmserve", "https://github.com/AlexsJones/homebrew-llmserve"
+tap "anomalyco/tap"
 tap "azure/kubelogin", "https://github.com/Azure/homebrew-kubelogin"
+tap "haakofli/viewbus"
 tap "hashicorp/tap"
+tap "josejuanqm/tap"
+tap "microsoft/aspire"
 tap "terraform-linters/tap"
 # Apple Intelligence from the command-line, with OpenAi-compatible API server
 brew "apfel"
@@ -17,6 +23,8 @@ brew "fzf"
 brew "git"
 # Open source programming language to build simple/reliable/efficient software
 brew "go"
+# Fast linters runner for Go
+brew "golangci-lint"
 # Kubernetes CLI To Manage Your Clusters In Style!
 brew "k9s"
 # Tool that can switch between kubectl contexts easily and create aliases
@@ -31,39 +39,70 @@ brew "node"
 brew "python@3.11"
 # Search tool like grep and The Silver Searcher
 brew "ripgrep"
+# CLI proxy to minimize LLM token consumption
+brew "rtk"
 # Terminal multiplexer
 brew "tmux"
+# Extremely fast Python package installer and resolver, written in Rust
+brew "uv"
+# Generate your Xcode project from a spec file and your folder structure
+brew "xcodegen"
 # Shell extension to navigate your filesystem faster
 brew "zoxide"
 # UNIX shell (command interpreter)
 brew "zsh"
+# Terminal tool that right-sizes LLM models to your system hardware
+brew "alexsjones/llmfit/llmfit", trusted: true
+# TUI for serving local LLM models — pick a model, pick a backend, serve it
+brew "alexsjones/llmserve/llmserve", trusted: true
+# The AI coding agent built for the terminal.
+brew "anomalyco/tap/opencode", trusted: true
 # A Kubernetes credential (exec) plugin implementing azure authentication
 brew "azure/kubelogin/kubelogin", trusted: true
 # Terraform
 brew "hashicorp/tap/terraform", trusted: true
+# Application launcher and productivity software
+cask "alfred"
+# CLI for building observable, production-ready distributed applications
+cask "microsoft/aspire/aspire", trusted: true
 # Open source IDE for exploring and testing APIs
 cask "bruno"
+# Utility that prevents the system from going to sleep
+cask "caffeine"
 # Terminal-based AI coding assistant
 cask "claude-code"
+# Configurable Dock replacement with widgets, Launchpad and a window switcher
+cask "josejuanqm/tap/docky", trusted: true
 # Developer platform
 cask "dotnet-sdk"
 cask "font-jetbrains-mono"
 cask "font-meslo-lg"
 # Terminal emulator that uses platform-native UI and GPU acceleration
 cask "ghostty"
+# Cross-platform Git credential storage for multiple hosting providers
+cask "git-credential-manager"
 # JetBrains tools manager
 cask "jetbrains-toolbox"
+# Interactive tool for analyzing MongoDB data
+cask "mongodb-compass"
 # Control your tools with a few keystrokes
 cask "raycast"
 # Pluggable Terraform linter
 cask "terraform-linters/tap/tflint", trusted: true
+# Run commands and display their output on the desktop
+cask "ubersicht"
+# Azure Service Bus desktop manager with built-in MCP server
+cask "haakofli/viewbus/viewbus", trusted: true
 # Open-source code editor
 cask "visual-studio-code"
+# Menu bar toolkit with keep-awake, system monitor and volume mixer
+cask "vorssaint"
 vscode "anthropic.claude-code"
 vscode "bierner.markdown-mermaid"
 vscode "christopherhx.azure-pipelines-vscode-ext"
 vscode "davidanson.vscode-markdownlint"
 vscode "esbenp.prettier-vscode"
+vscode "foxundermoon.shell-format"
 vscode "hashicorp.terraform"
 vscode "jnoortheen.nix-ide"
 vscode "johncwaters.azdopr"
@@ -75,3 +114,10 @@ vscode "redhat.vscode-yaml"
 vscode "vinaydommeti.vscode-pr-azdo"
 go "github.com/wailsapp/wails/v2/cmd/wails"
 go "github.com/neilpa/yajsv"
+uv "litellm[proxy]"
+uv "trafilatura"
+npm "@earendil-works/pi-coding-agent"
+npm "9router"
+npm "better-sqlite3"
+npm "sql.js"
+npm "systray2"

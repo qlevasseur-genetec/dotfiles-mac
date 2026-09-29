@@ -3,3 +3,4 @@
 [[ -f ~/.config/zsh/functions.zsh ]] && source ~/.config/zsh/functions.zsh
 
 eval "$(zoxide init --cmd cd zsh)"
+. "$HOME/.cargo/env"
