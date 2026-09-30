@@ -5,7 +5,7 @@ A minimalist, symlink-free dotfiles configuration managed via a bare Git reposit
 ## Features
 
 - No Symlinks Required: Uses a bare Git repo targeting $HOME directly.
-- Automated Bootstrapping: Installs Homebrew, packages from ~/.Brewfile, and the Powerlevel10k theme.
+- Automated Bootstrapping: Installs Homebrew, packages from ~/.config/Brewfile, and the Powerlevel10k theme.
 - Safe Checkouts: Automatically backs up pre-existing configuration files to ~/.dotfiles-backup/ instead of overwriting them.
 - Clean Status: Ignores untracked files in $HOME by default.
 
@@ -20,8 +20,8 @@ Linux: git and curl installed via your system package manager
 
 Run the automated installation script directly from your terminal:
 
-```Bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/qlevasseur-genetec/dotfiles-mac/refs/heads/main/bootstrap.sh)"
+```bash
+curl -fsSL https://raw.githubusercontent.com/qlevasseur-genetec/dotfiles-mac/main/bootstrap.sh | bash
 ```
 
 Alternatively, clone and run it locally:
@@ -72,8 +72,8 @@ dotfiles pull
 When you install new tools, sync your Brewfile:
 
 ```Bash
-brew bundle dump --force --describe --file=~/.Brewfile
-dotfiles add ~/.Brewfile
+brew bundle dump --force --describe --file=~/.config/Brewfile
+dotfiles add ~/.config/Brewfile
 dotfiles commit -m "Update Brewfile packages"
 dotfiles push
 ```
