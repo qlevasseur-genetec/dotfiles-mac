@@ -34,6 +34,13 @@ chmod +x ~/bootstrap.sh
 ~/bootstrap.sh
 ```
 
+To bootstrap from an extracted zip of this repository without cloning from GitHub,
+run the script from the extracted folder with the local-source flag:
+
+```bash
+bash ./bootstrap.sh --local
+```
+
 ## Day-to-Day Usage
 
 Manage your configurations using the dotfiles alias exactly like standard git:

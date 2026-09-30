@@ -6,10 +6,31 @@ set -e
 # ==============================================================================
 DOTFILES_REPO="https://github.com/qlevasseur-genetec/dotfiles-mac.git"
 DOTFILES_DIR="$HOME/.dotfiles"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+USE_LOCAL_SOURCE=false
 BREWFILE_PATH="$HOME/.config/.Brewfile"
 ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
 ZSHENV_PATH="$HOME/.zshenv"
 ZSHENV_SOURCE="$HOME/.config/zsh/.zshenv"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --local)
+      USE_LOCAL_SOURCE=true
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: $0 [--local]"
+      echo "  --local  Use the folder containing this script instead of cloning from Git."
+      exit 0
+      ;;
+    *)
+      echo "Error: Unknown argument: $1" >&2
+      echo "Usage: $0 [--local]" >&2
+      exit 1
+      ;;
+  esac
+done
 
 echo "==> Starting machine bootstrap..."
 
@@ -71,8 +92,17 @@ function dotfiles {
 }
 
 if [[ ! -d "$DOTFILES_DIR" ]]; then
-  echo "==> Cloning bare dotfiles repository..."
-  git clone --bare "$DOTFILES_REPO" "$DOTFILES_DIR"
+  if [[ "$USE_LOCAL_SOURCE" == true ]]; then
+    echo "==> Creating bare dotfiles repository from $SCRIPT_DIR..."
+    git init --bare "$DOTFILES_DIR" >/dev/null
+    git -c user.name="Local Bootstrap" -c user.email="local-bootstrap@localhost" \
+      --git-dir="$DOTFILES_DIR" --work-tree="$SCRIPT_DIR" add -A
+    git -c user.name="Local Bootstrap" -c user.email="local-bootstrap@localhost" \
+      --git-dir="$DOTFILES_DIR" --work-tree="$SCRIPT_DIR" commit --allow-empty -m "Import local dotfiles snapshot" >/dev/null
+  else
+    echo "==> Cloning bare dotfiles repository..."
+    git clone --bare "$DOTFILES_REPO" "$DOTFILES_DIR"
+  fi
 else
   echo "==> Dotfiles repository already exists at $DOTFILES_DIR."
 fi
