@@ -1,1 +1,0 @@
-/Users/qlevasseur/.config/zsh/.zshenv
