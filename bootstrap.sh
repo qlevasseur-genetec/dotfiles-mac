@@ -144,8 +144,15 @@ else
 fi
 
 # ==============================================================================
-# 4. INSTALL POWERLEVEL10K THEME
+# 4. INSTALL OH MY ZSH & POWERLEVEL10K THEME
 # ==============================================================================
+if [[ ! -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]]; then
+  echo "==> Installing Oh My Zsh..."
+  RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+else
+  echo "==> Oh My Zsh is already installed."
+fi
+
 echo "==> Setting up Powerlevel10k..."
 P10K_DIR="${ZSH_CUSTOM}/themes/powerlevel10k"
 
